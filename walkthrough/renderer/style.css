@@ -1,0 +1,195 @@
+:root {
+  --bg: #fafaf7;
+  --fg: #1a1a1a;
+  --accent: #1f5fa8;
+  --code-bg: #f0eee6;
+  --muted: #777;
+  --body-font: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+               "Segoe UI", sans-serif;
+  --mono-font: "SF Mono", Menlo, Consolas, monospace;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body-font);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+#deck-header {
+  padding: 1.5rem 2rem 0.75rem;
+  border-bottom: 1px solid #e5e3da;
+}
+#deck-title { margin: 0; font-size: 1.1rem; color: var(--muted); }
+#deck-meta  { font-size: 0.85rem; color: var(--muted); }
+
+#deck {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: calc(100vh - 9rem);
+}
+
+.slide { display: none; }
+.slide.active { display: block; }
+
+.slide h2 {
+  font-size: 1.75rem;
+  margin: 0 0 1.25rem 0;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.35rem;
+}
+
+.block { margin: 1rem 0; }
+
+.block.code pre {
+  background: var(--code-bg);
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: var(--mono-font);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+}
+.block.code .hl { background: rgba(31, 95, 168, 0.12); display: block; }
+
+.block.equation { text-align: center; padding: 0.5rem 0; }
+
+.block.svg svg, .block.image img {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.block.image figcaption {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+
+.block.plot .placeholder,
+.block.canvas .placeholder {
+  border: 1px dashed var(--muted);
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--mono-font);
+  font-size: 0.85rem;
+}
+
+#deck-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  border-top: 1px solid #e5e3da;
+  padding: 0.6rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono-font);
+  font-size: 0.85rem;
+}
+#deck-nav button {
+  background: none;
+  border: 1px solid var(--muted);
+  color: var(--fg);
+  padding: 0.3rem 0.9rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+#deck-nav button:disabled { opacity: 0.35; cursor: default; }
+#counter { color: var(--muted); }
+
+/* PointCloudBlock */
+.block.point-cloud canvas {
+  background: #050610;
+  border-radius: 4px;
+}
+.point-cloud-status {
+  font-family: var(--mono-font);
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+.point-cloud-legend {
+  margin-top: 0.6rem;
+  font-family: var(--mono-font);
+  font-size: 0.8rem;
+}
+.point-cloud-legend .bar {
+  width: 240px;
+  height: 12px;
+  background: linear-gradient(to right,
+    rgb(36,69,143), rgb(245,240,232), rgb(179,26,38));
+  border-radius: 2px;
+}
+.point-cloud-legend .bar-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 240px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ClusterIndexBlock */
+.block.cluster-index {
+  font-family: var(--mono-font);
+}
+.cluster-index-status {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.cluster-index-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+.cluster-index-table th,
+.cluster-index-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e5e3da;
+  text-align: left;
+  vertical-align: top;
+}
+.cluster-index-table th {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.cluster-index-table th:hover {
+  color: var(--fg);
+}
+.cluster-index-table td.cluster-reps {
+  color: var(--fg);
+  word-break: break-all;
+}
+.cluster-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
+}
+.cluster-index-table td.cluster-desc {
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.cluster-index-table td.cluster-reps {
+  color: var(--muted);
+  font-size: 0.78rem;
+}

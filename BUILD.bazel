@@ -1,0 +1,8 @@
+# rules_walkthrough — root. The public surface is
+# //walkthrough:defs.bzl (the `walkthrough_html` macro).
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "MODULE.bazel",
+    "INTERNAL.md",
+])

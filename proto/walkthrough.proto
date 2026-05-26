@@ -1,0 +1,894 @@
+syntax = "proto3";
+
+// Declarative slide-deck walkthrough format.
+//
+// A `Walkthrough` is the source of truth for an authored visual
+// narrative — a sequence of slides, each with composable blocks
+// (text, equations, SVG diagrams, plots, code listings, animated
+// canvas scripts). The proto is the authoring contract; renderers
+// consume it and produce HTML / canvas / WebGPU / etc.
+//
+// The MVP renderer (`walkthrough/renderer/`) consumes the
+// JSON representation of this proto and emits a self-contained
+// static site. The `walkthrough_html` Bazel macro bundles it.
+//
+// Why a proto rather than direct HTML/Reveal.js: separation of
+// authoring intent from presentation. The same `.textpb` can drive
+// a Reveal.js HTML deck, a Beamer PDF, or a Meridian web-component
+// renderer once we add those targets. The schema also opens the
+// door to ML-generated walkthroughs from research artifacts (e.g.
+// "given this paper section, emit a Walkthrough").
+//
+// Future extensions: WalkthroughPanel as a Meridian PanelDescriptor
+// variant; canvas/WebGPU animation steps tied to scientific data.
+
+package walkthrough.v1;
+
+// A complete authored walkthrough — title + slide sequence + theme.
+message Walkthrough {
+  // Stable id used as the URL slug and Bazel target name.
+  string id = 1;
+  // Display title shown in the deck header.
+  string title = 2;
+  // Optional subtitle / author / date displayed on the title slide.
+  string subtitle = 3;
+  string author = 4;
+  string date = 5;
+  // Ordered slide sequence.
+  repeated Slide slides = 6;
+  // Color/typography theme (optional; defaults to light).
+  Theme theme = 7;
+}
+
+// One slide. Composed of blocks rendered top-to-bottom.
+message Slide {
+  // Unique within the walkthrough; used as the anchor in the URL.
+  string id = 1;
+  // Optional slide heading.
+  string title = 2;
+  // Top-to-bottom block sequence.
+  repeated SlideBlock blocks = 3;
+  // Optional speaker notes (rendered in a side pane, not the deck).
+  string notes = 4;
+}
+
+// One block within a slide. Exactly one variant must be set.
+message SlideBlock {
+  // Optional id for animation targeting.
+  string block_id = 1;
+  // Optional CSS-style margin/width hints; treated as opaque by
+  // the renderer for now.
+  string layout_hint = 2;
+  oneof kind {
+    TextBlock text = 10;          // markdown-like prose
+    EquationBlock equation = 11;  // KaTeX-rendered LaTeX
+    SvgBlock svg = 12;            // inline SVG
+    PlotBlock plot = 13;          // structured data plot
+    ImageBlock image = 14;        // static raster/vector asset
+    CodeBlock code = 15;          // syntax-highlighted listing
+    CanvasBlock canvas = 16;      // JS-driven canvas (v2+)
+    VizSceneBlock viz_scene = 17; // declarative 2D scene
+    HeightmapBlock heightmap = 18; // WebGPU 3D surface
+    VegaLiteBlock vega_lite = 19; // Vega-Lite spec
+    PolarTraceBlock polar_trace = 20; // WebGPU 3D parametric curve
+    PrimeLatticeBlock prime_lattice = 21; // WebGPU 3D over prime axes
+    ZetaDensityBlock zeta_density = 22; // Density of ζ trace, 2D heat or 3D height
+    ZetaDomainColoringBlock zeta_domain_coloring = 23; // 2D phase+magnitude map
+    PointCloudBlock point_cloud = 24; // instanced 3D point cloud + scalar field colormap
+    ClusterIndexBlock cluster_index = 25; // sortable table of cluster summaries
+  }
+}
+
+message TextBlock {
+  // Markdown-flavored prose. Supports headers, emphasis, lists,
+  // inline `code`, and inline math via $...$. Block math should
+  // use EquationBlock for proper rendering control.
+  string markdown = 1;
+}
+
+message EquationBlock {
+  // LaTeX source for a single display equation.
+  string latex = 1;
+  // Optional cross-reference key (e.g. for citing elsewhere).
+  string label = 2;
+}
+
+message SvgBlock {
+  // Either inline source or a path to a separate .svg file.
+  oneof source {
+    string inline_svg = 1;
+    string asset_path = 2;       // resolved against walkthrough's
+                                 // asset directory
+  }
+  // Optional viewBox override.
+  string view_box = 3;
+}
+
+message PlotBlock {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    LINE = 1;
+    SCATTER = 2;
+    HISTOGRAM = 3;
+    HEATMAP = 4;
+  }
+  Kind kind = 1;
+  // Inline series. If `data_source` is also set, the resolved
+  // sidecar's series are appended (sidecar wins on name collision).
+  repeated PlotSeries series = 2;
+  PlotAxes axes = 3;
+  // Resolved at build time by the //walkthrough resolver:
+  // parquet/csv/npz files are read via pyarrow/numpy and emitted
+  // as sidecar JSON in the staged site; the URI is rewritten to
+  // point at the sidecar. The renderer fetches the JSON directly.
+  DataSource data_source = 4;
+  uint32 width_px = 5;
+  uint32 height_px = 6;
+}
+
+message PlotSeries {
+  string name = 1;
+  // Inline (x, y) points if not loading from `data_source`.
+  repeated double x = 2;
+  repeated double y = 3;
+  // Optional CSS color.
+  string color = 4;
+}
+
+message PlotAxes {
+  string x_label = 1;
+  string y_label = 2;
+  bool x_log = 3;
+  bool y_log = 4;
+  // Explicit ranges; if zero, renderer auto-fits.
+  double x_min = 5;
+  double x_max = 6;
+  double y_min = 7;
+  double y_max = 8;
+}
+
+message ImageBlock {
+  string asset_path = 1;
+  string alt_text = 2;
+  uint32 max_width_px = 3;
+}
+
+message CodeBlock {
+  string language = 1;   // e.g. "lean", "python", "latex"
+  string source = 2;
+  // Optional line-range highlight (1-indexed, inclusive).
+  repeated uint32 highlight_lines = 3;
+}
+
+message CanvasBlock {
+  // Path to a JS module (relative to walkthrough's asset dir) that
+  // exports a `render(canvas, params)` function. The renderer
+  // instantiates the canvas + invokes the script.
+  string script_path = 1;
+  uint32 width_px = 2;
+  uint32 height_px = 3;
+  // Initial state passed to the script as a JSON string.
+  string initial_state_json = 4;
+  // Optional data feed — resolver-loaded contents are passed to
+  // the script via params.data alongside initial_state_json's
+  // contents. Same resolution semantics as PlotBlock.data_source.
+  DataSource data_source = 5;
+}
+
+// Declarative 2D scene: a composable, data-bindable replacement for
+// hand-written SVG strings and bespoke CanvasBlock JS modules. The
+// renderer (`walkthrough/renderer/scene_renderer.js`) walks
+// the primitives top-to-bottom, applies the optional `axes`
+// transform to interpret coordinates in data space, and emits an
+// SVG (or canvas-2D, in a future backend). Primitives that bind to
+// `data_source` arrays receive their coordinates from the resolved
+// sidecar at render time, so the same scene spec can drive multiple
+// experiments by swapping the data file.
+//
+// Out of scope for this MVP (deferred to later proto revs):
+//   - 3D primitives (mesh/surface in world space) — comes with the
+//     WebGPU backend (see roadmap B1, the ζ-heightmap block).
+//   - Animation timelines — coming in the Timeline message (A3).
+//   - Interaction (hover/click handlers) — needs an event bus first.
+message VizSceneBlock {
+  VizScene scene = 1;
+}
+
+message VizScene {
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  // CSS color for the scene backdrop. Default: theme background.
+  string background_color = 3;
+  // Optional coordinate frame. If unset, primitive (x, y) values
+  // are interpreted as raw pixels relative to the scene origin.
+  Axes2D axes = 4;
+  // Top-to-bottom z-order — last primitive draws on top.
+  repeated ScenePrimitive primitives = 5;
+  // Optional data feed. Same resolution semantics as
+  // PlotBlock.data_source — primitives reference sidecar arrays
+  // via the `*_binding` fields.
+  DataSource data_source = 6;
+  // Optional animation. If set, the renderer runs a `requestAnimationFrame`
+  // loop, evaluates each track at the current phase, and patches the
+  // corresponding primitive's rendered attribute.
+  Timeline timeline = 7;
+}
+
+// Declarative animation track set bound to a VizScene. The renderer
+// looks up each track's `target_id` against `ScenePrimitive.id`,
+// resolves the property path within the rendered SVG, and
+// interpolates between keyframes.
+//
+// MVP supported properties (extend as needed):
+//   - opacity (number, 0..1)
+//   - radius (number; PointsPrimitive only)
+//   - color  (string; via Keyframe.value_str)
+//   - x, y   (number; first element only for PointsPrimitive arrays)
+//
+// Other properties fall through with no effect (animator logs a
+// console warning).
+message Timeline {
+  // Total cycle duration. The timeline loops forever unless
+  // `loop_count` is set.
+  double duration_ms = 1;
+  // 0 = infinite (default). 1 = play once and freeze on the last
+  // keyframe value.
+  uint32 loop_count = 2;
+  repeated Track tracks = 3;
+}
+
+message Track {
+  // The `ScenePrimitive.id` of the primitive being animated.
+  string target_id = 1;
+  // Property path on the primitive. See Timeline doc for supported
+  // properties.
+  string property = 2;
+  // Keyframes must be sorted by `time_ms`. The animator clamps
+  // before the first keyframe and after the last.
+  repeated Keyframe keyframes = 3;
+  // "linear" (default) | "ease_in_out" | "step"
+  string easing = 4;
+}
+
+message Keyframe {
+  double time_ms = 1;
+  // Numeric value (for opacity, radius, x, y, ...).
+  double value = 2;
+  // String value (for color and other categorical properties).
+  // If set, takes precedence over `value`.
+  string value_str = 3;
+}
+
+message Axes2D {
+  string x_label = 1;
+  string y_label = 2;
+  // Domain in data units. If both min/max are zero on an axis the
+  // renderer auto-fits to the union of all primitive coordinates.
+  double x_min = 3;
+  double x_max = 4;
+  double y_min = 5;
+  double y_max = 6;
+  // Optional fixed reference lines (e.g. "critical line σ = 1/2").
+  repeated AxisMarker x_markers = 7;
+  repeated AxisMarker y_markers = 8;
+  // Show light grid lines at every tick.
+  bool show_grid = 9;
+}
+
+message AxisMarker {
+  double value = 1;
+  string label = 2;
+  string color = 3;
+  bool dashed = 4;
+}
+
+message ScenePrimitive {
+  // Optional id for animation targeting (Timeline) and debugging.
+  string id = 1;
+  oneof kind {
+    PointsPrimitive points = 10;
+    LinesPrimitive lines = 11;
+    PolylinePrimitive polyline = 12;
+    RectPrimitive rect = 13;
+    TextPrimitive text = 14;
+  }
+}
+
+message PointsPrimitive {
+  // Inline coordinates OR a binding into the sidecar (mutually
+  // exclusive on a per-axis basis; inline wins if both are set).
+  repeated double x = 1;
+  repeated double y = 2;
+  // Dot-path into the sidecar bundle, e.g. "columns.x" or
+  // "arrays.sigma_trace". Resolved at render time.
+  string x_binding = 3;
+  string y_binding = 4;
+  string color = 5;
+  double radius = 6;
+  double opacity = 7;
+}
+
+message LinesPrimitive {
+  // Each line: (x1[i], y1[i]) → (x2[i], y2[i]).
+  repeated double x1 = 1;
+  repeated double y1 = 2;
+  repeated double x2 = 3;
+  repeated double y2 = 4;
+  string color = 5;
+  double width = 6;
+  bool dashed = 7;
+}
+
+message PolylinePrimitive {
+  repeated double x = 1;
+  repeated double y = 2;
+  string x_binding = 3;
+  string y_binding = 4;
+  string color = 5;
+  double width = 6;
+  bool closed = 7;
+  string fill = 8;
+  // If set, x/y are generated by uniformly sampling `expression.var`
+  // across [min, max] and evaluating the body. Mutually exclusive
+  // with inline x/y and bindings (expression wins if multiple set).
+  ExpressionPlot expression = 9;
+}
+
+message RectPrimitive {
+  // Axis-aligned rectangle in data coordinates (or pixels if no
+  // axes are set on the scene).
+  double x = 1;
+  double y = 2;
+  double width = 3;
+  double height = 4;
+  string color = 5;
+  string fill = 6;
+  double opacity = 7;
+}
+
+// A pure-expression coordinate generator: samples `expression.var`
+// uniformly over [min, max] (`samples` points), evaluates the
+// expression body to produce y-values. The renderer treats the
+// (x_i, y_i) pairs as the polyline's coordinates.
+//
+// Why not put `expression` directly on the polyline? Sampling
+// parameters (min/max/samples) deserve their own scope so we can
+// reuse them with other generator-style primitives (heatmaps,
+// surfaces) without duplicating fields.
+message ExpressionPlot {
+  // The math expression to evaluate. `expression.vars` must contain
+  // exactly one entry — the independent variable named by the
+  // domain. Builtins (sin, cos, sqrt, log, etc.) are always in
+  // scope; see MathExpression.body for the full set.
+  MathExpression expression = 1;
+  double min = 2;
+  double max = 3;
+  uint32 samples = 4;
+}
+
+// A typed math expression compiled and evaluated in-browser
+// (renderer-side) or at build time (resolver-side, future).
+//
+// `body` is a JavaScript expression — pure, no statements, no
+// assignments, no loops. The renderer compiles it via `new Function`
+// with `vars` as named arguments and a fixed builtin scope:
+//
+//   constants: pi, e
+//   funcs:     sin, cos, tan, asin, acos, atan, atan2,
+//              sinh, cosh, tanh, exp, log (natural), log2, log10,
+//              sqrt, cbrt, abs, sign, floor, ceil, round, trunc,
+//              min, max, pow, hypot, mod (=== %)
+//
+// Walkthroughs are author-controlled — `new Function` is acceptable
+// here. If we ever ingest expressions from untrusted sources, swap
+// in a real parser/interpreter (see roadmap A4 follow-up: WASM/WGSL
+// codegen, which would also enable evaluating the same expression
+// in a fragment shader).
+message MathExpression {
+  // Independent variables, in the order the renderer expects to
+  // pass them at evaluation time. e.g. ["x"] for a curve;
+  // ["sigma", "t"] for a 2D surface.
+  repeated string vars = 1;
+  // The expression body (a JS expression — no `let`, no `return`).
+  // e.g. "sin(x) * exp(-x*0.1)" or
+  //      "sqrt(sigma) * cos(t * log(sigma))".
+  string body = 2;
+}
+
+message TextPrimitive {
+  double x = 1;
+  double y = 2;
+  string text = 3;
+  string color = 4;
+  string font_family = 5;
+  double font_size = 6;
+  // "start" | "middle" | "end"
+  string anchor = 7;
+}
+
+// An escape hatch to the Vega-Lite grammar for sophisticated 2D
+// charts (faceting, tooltips, brushing, legends, log axes, etc.)
+// that PlotBlock intentionally doesn't try to express. The renderer
+// vendors vega + vega-lite + vega-embed under
+// renderer/vendor/vega/; the bundle is ~800K total, fetched once
+// per page load.
+//
+// `spec_json` is verbatim Vega-Lite JSON
+// (https://vega.github.io/vega-lite/). If `data_source` is set, the
+// resolver-loaded sidecar is spliced into the spec at `data.values`
+// at render time — so the same spec can be reused with different
+// data files by swapping the macro's `data=` attr.
+//
+// Use PlotBlock for 5-bar one-liners (smaller wire, instant render);
+// use VegaLiteBlock when you want a "real" chart. VizScene remains
+// the right choice for low-level diagrams (custom primitives,
+// declarative animation) and HeightmapBlock for 3D surfaces.
+message VegaLiteBlock {
+  // Verbatim Vega-Lite specification. The renderer parses it as
+  // JSON and hands it to vega-embed.
+  string spec_json = 1;
+  // Optional data feed; spliced into spec.data.values at render time.
+  // Sidecar shape is the standard resolver bundle — if it has
+  // `series` we flatten to long form (name, x, y); if it has
+  // `columns` we expose the row-oriented dicts directly.
+  DataSource data_source = 2;
+  // Pixel dimensions; if unset, Vega uses spec-defined size.
+  uint32 width_px = 3;
+  uint32 height_px = 4;
+  // If true, show the vega-embed action menu (download SVG/PNG,
+  // open in editor, etc.). Default off for clean slides.
+  bool show_actions = 5;
+}
+
+// A 3D surface rendered via WebGPU. The height z = f(x, y) is
+// evaluated per-vertex in a WGSL shader on the GPU; mesh resolution
+// is `(x_samples + 1) × (y_samples + 1)` vertices over the domain
+// `[x_min, x_max] × [y_min, y_max]`. The user can orbit the camera
+// with mouse drag and zoom with the wheel.
+//
+// MVP supports a fixed enum of named height functions implemented
+// directly in WGSL (see HeightFunction below) — including
+// ZETA_MODULUS which evaluates |ζ(σ+it)| via a 200-term
+// Dirichlet-eta sum, valid throughout the critical strip.
+//
+// Future: replace `height` with a MathExpression that we codegen
+// into WGSL. The same expression body would then drive both 2D
+// plots (via math_eval.js) and 3D surfaces (via WGSL). Tracked in
+// the walkthrough roadmap; see A4's deferred WASM/WGSL line.
+message HeightmapBlock {
+  enum HeightFunction {
+    HEIGHT_FUNCTION_UNSPECIFIED = 0;
+    // |ζ(x + i·y)| via Dirichlet-eta on the critical strip.
+    // Suggested domain: x ∈ [0.05, 0.95], y ∈ [0, 50].
+    ZETA_MODULUS = 1;
+    // log(1 + |ζ(x + i·y)|) — compresses the peaks for visibility.
+    ZETA_MODULUS_LOG = 2;
+    // x² − y² — classic saddle, useful for smoke-testing the
+    // pipeline without ζ.
+    SADDLE = 3;
+    // exp(−(x² + y²)) — Gaussian bump.
+    GAUSSIAN = 4;
+    // z = −log₁₀|ζ_K(½+i·y) − ζ(½+i·y)| where K = floor(x).
+    // The partial Euler product `ζ_K = ∏_{n≤K} (1 − p_n^-s)^-1`
+    // converges to ζ as K grows. Higher z = better convergence;
+    // the surface RISES as you traverse +x. Zeros show as ridges
+    // along the x axis because absolute error spikes wherever
+    // ζ is near zero.
+    // Suggested domain: x ∈ [1, 80], y ∈ [0, 50].
+    EULER_PRODUCT_ERROR_LOG = 5;
+  }
+
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  HeightFunction height = 3;
+
+  // Domain over which the surface is sampled.
+  double x_min = 4;
+  double x_max = 5;
+  double y_min = 6;
+  double y_max = 7;
+  uint32 x_samples = 8;
+  uint32 y_samples = 9;
+
+  // Vertical scale applied after evaluating `height`. Raw |ζ| in
+  // the critical strip stays around 0–10; for the camera framing
+  // we typically render with z_scale ≈ 0.1 to keep peaks tame.
+  double z_scale = 10;
+
+  // Initial camera pose. If unset, the renderer picks defaults that
+  // frame the unit cube above the domain.
+  Camera3D camera = 11;
+
+  // Optional labels for the rendered HUD overlay.
+  string x_label = 12;
+  string y_label = 13;
+  string z_label = 14;
+
+  // Default: linear ramp blue→cyan→green→yellow→red by height.
+  // Reserved for future colormap selection.
+  string colormap = 15;
+  // Optional reference geometry:
+  //   - show_floor_plane: translucent horizontal plane at z=0
+  //     (the "ground"). Helps reads zero-valleys as actually
+  //     touching down.
+  //   - show_critical_plane: translucent vertical plane at
+  //     x = critical_x (data coords). Drawn full-height; the
+  //     surface intersects it along a curve which IS the polar
+  //     trace's input.
+  //   - show_strip_volume: faint translucent box spanning the
+  //     full rendered domain (`x_min..x_max × y_min..y_max ×
+  //     0..z_max`). Marks the bounding region as "the strip".
+  bool show_floor_plane = 16;
+  bool show_critical_plane = 17;
+  double critical_x = 18;  // defaults to 0.5 when unset
+  bool show_strip_volume = 19;
+
+  // Source for surface color. Default HEIGHT uses the same magma
+  // gradient driven by z value (current behavior). PHASE only
+  // applies to complex-valued height functions (the ZETA_* family);
+  // colors by hue = arg(ζ), giving the spiral-vortex pattern from
+  // domain coloring lifted into 3D.
+  enum ColorBy {
+    COLOR_BY_UNSPECIFIED = 0;
+    HEIGHT = 1;
+    PHASE = 2;
+  }
+  ColorBy color_by = 20;
+}
+
+// A 3D parametric curve rendered via WebGPU. Companion to
+// HeightmapBlock: where the heightmap shows a surface z = f(σ, t),
+// this shows a parametric curve `t → (Re f, Im f, t)` — i.e. the
+// trace of a complex-valued function in 3D, with t as the vertical
+// axis.
+//
+// The iconic use case is `ζ(1/2 + i·t)` on the critical line:
+// the curve corkscrews around the t-axis, pinching to the axis at
+// each nontrivial zero. Each loop around the axis encloses a zero.
+// Visually it's the "polar" view of ζ — points trace out angles and
+// magnitudes in the complex plane as t advances.
+//
+// Vertex count = `t_samples`; the curve is rendered as a line strip
+// in WebGPU. ζ is evaluated per-vertex in WGSL via Dirichlet-eta,
+// same as HeightmapBlock.
+message PolarTraceBlock {
+  enum TraceFunction {
+    TRACE_FUNCTION_UNSPECIFIED = 0;
+    // ζ(1/2 + i·t) — the standard critical-line trace.
+    ZETA_CRITICAL_LINE = 1;
+    // η(1/2 + i·t) — the Dirichlet eta function on the same line.
+    // No pole at t=0, slightly different zero pattern.
+    ETA_CRITICAL_LINE = 2;
+  }
+
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  TraceFunction trace = 3;
+  // Parameter domain along t (the imaginary axis).
+  double t_min = 4;
+  double t_max = 5;
+  // Number of sampled vertices along the curve. Higher = smoother
+  // but costs vertex-shader evaluations of ζ. 800–2000 looks good
+  // for t ∈ [0, 50]; bump if loops appear faceted.
+  uint32 t_samples = 6;
+  // Multipliers applied before rendering. (Re, Im) values from ζ
+  // typically span ±3; xy_scale ≈ 0.3 keeps the curve inside the
+  // display cube. t_scale ≈ 0.04 maps t ∈ [0, 50] to z ∈ [0, 2].
+  double xy_scale = 7;
+  double t_scale = 8;
+  Camera3D camera = 9;
+  // Draw a faint t-axis line through the origin so the corkscrew
+  // motif is legible.
+  bool show_axis = 10;
+}
+
+// A 3D visualization whose horizontal axes are scaled by the
+// primes themselves rather than by uniform integers. The mesh
+// vertex at lattice position `(i, j)` is positioned at world
+// `(p_i, p_j, f(p_i, p_j))` for some `f` chosen by `function`.
+//
+// Tick labels are rendered as an SVG overlay above the canvas;
+// labels are accurate when the camera is roughly top-down and
+// degrade gracefully as you orbit (they stay attached to the
+// canvas but no longer track the projected positions exactly).
+//
+// `n_primes` controls the side length of the lattice. Memory is
+// O(N²); 60 primes (= ~280 max value) gives a 60×60 surface that
+// renders comfortably; bumping to 200 starts to feel sluggish on
+// integrated GPUs.
+//
+// The first two function kinds (LOG_PRODUCT, GOLDBACH_BIT) render
+// as surfaces. ULAM_SPIRAL and PRIME_GAP_LANDSCAPE use a point-
+// cloud topology and are deferred to a follow-up rev — they're
+// declared here so the proto is stable.
+message PrimeLatticeBlock {
+  enum LatticeFunction {
+    LATTICE_FUNCTION_UNSPECIFIED = 0;
+    // z = log(p_i · p_j) = log(p_i) + log(p_j). Smooth surface;
+    // reveals the multiplicative structure that the explicit
+    // formula's log(p) weights pick up.
+    LOG_PRODUCT = 1;
+    // z = 1 if (p_i + p_j) is prime, else 0. Fractal-looking
+    // bitmap related to Goldbach's conjecture.
+    GOLDBACH_BIT = 2;
+    // [DEFERRED] Integers 1..N² laid on an Ulam spiral in the xy
+    // plane; z = 1 if the integer is prime, else 0. Different
+    // mesh topology (point cloud, not surface).
+    ULAM_SPIRAL = 3;
+    // [DEFERRED] Scatter at (i, p_i, p_{i+1} − p_i). 1D curve in
+    // 3D showing prime-gap statistics.
+    PRIME_GAP_LANDSCAPE = 4;
+  }
+
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  LatticeFunction function = 3;
+  // Side length of the lattice (number of primes per axis).
+  // Defaults to 60 when unset.
+  uint32 n_primes = 4;
+  // For ULAM_SPIRAL: the number of integers laid on the spiral
+  // (= side² of the bounding square). Ignored for other kinds.
+  uint32 n_integers = 5;
+  // Vertical scale on z before rendering.
+  double z_scale = 6;
+  Camera3D camera = 7;
+  // Show the SVG prime-tick overlay along the projected x and y
+  // axes. Most useful at a top-down camera.
+  bool show_prime_ticks = 8;
+}
+
+// Domain coloring of ζ over a rectangle in the complex plane.
+// Per-pixel: evaluate ζ at (σ + i·t) and color by
+//   hue = arg(ζ)         — full rainbow wheel around each zero
+//   value = tone-map(|ζ|) — bright peaks, dark valleys at zeros
+//
+// Optional phase / log-magnitude bands ("Wegert plot" style) draw
+// faint contour lines at constant arg or constant log|ζ|.
+//
+// The result reproduces the canonical "ζ vortex" image: zeros
+// appear as phase singularities (color rotates around them);
+// poles (only at s=1) appear as bright color circulations of the
+// opposite sense.
+message ZetaDomainColoringBlock {
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  // Rectangle in complex plane.
+  double sigma_min = 3;
+  double sigma_max = 4;
+  double t_min = 5;
+  double t_max = 6;
+  // Brightness/value mapping for |ζ|. Default is a soft tone-map
+  // that keeps both small and large values visible.
+  // For now: implicit — set in shader.
+
+  // Draw phase contour bands (N evenly-spaced lines of constant
+  // arg ζ). 0 = no bands. 12 is the canonical Wegert default.
+  uint32 phase_bands = 7;
+  // Draw log-magnitude contour bands (lines at constant log |ζ|).
+  uint32 magnitude_bands = 8;
+
+  // Draw a faint dashed vertical line at σ = 0.5 (the critical
+  // line) so the viewer immediately sees where the nontrivial
+  // zeros are conjectured to sit.
+  bool show_critical_line = 9;
+}
+
+// Value-distribution of ζ(σ + i·t) on a fixed-σ vertical line,
+// accumulated as a 2D density in the complex plane.
+//
+// Two render passes:
+//   1. Trace the curve `t → (Re ζ, Im ζ)` for t ∈ [t_min, t_max]
+//      with `t_samples` sampled points, drawn as a line strip into
+//      an offscreen rgba16float texture with **additive blending**.
+//      Pixels under many segments accumulate high intensity; rarely-
+//      visited pixels stay near zero.
+//   2. Display the density texture either:
+//      - HEATMAP_2D: full-screen fragment colored by log(density).
+//      - HEIGHTMAP_3D: 3D mesh whose vertex z = density (sampled
+//        from the texture), shaded by height. Peaks at the loop
+//        centers of slide 8's polar trace; the central "hub" where
+//        the curve repeatedly returns to near-origin is the tallest
+//        spire.
+//
+// Pedagogical hook: this is what Selberg's "value distribution"
+// theorem visualizes. As t_max grows, the density approaches a
+// well-defined limiting distribution on the complex plane.
+message ZetaDensityBlock {
+  enum DisplayMode {
+    DISPLAY_MODE_UNSPECIFIED = 0;
+    HEATMAP_2D = 1;
+    HEIGHTMAP_3D = 2;
+  }
+
+  uint32 width_px = 1;
+  uint32 height_px = 2;
+  DisplayMode mode = 3;
+
+  // Vertical line in the complex plane to evaluate ζ on. σ = 0.5
+  // is the critical line. (Other values are valid but less
+  // interesting.)
+  double sigma = 4;
+
+  // Parameter range along the imaginary axis.
+  double t_min = 5;
+  double t_max = 6;
+  // Number of curve samples. Higher = smoother density; 50K is
+  // a reasonable default for t ∈ [0, 500].
+  uint32 t_samples = 7;
+
+  // Viewport in the (Re, Im) plane.
+  double xy_min = 8;
+  double xy_max = 9;
+
+  // Resolution of the accumulation texture (square). 512 is a
+  // good default; 1024 if you want crisper hotspots.
+  uint32 density_resolution = 10;
+
+  // Z scale for HEIGHTMAP_3D mode. The display normalizes density
+  // to [0, 1] before applying this scale.
+  double z_scale = 11;
+
+  // Camera (HEIGHTMAP_3D only). HEATMAP_2D ignores.
+  Camera3D camera = 12;
+
+  // Divide raw accumulation by t_max in the display shader so the
+  // displayed quantity is a probability density (bounded). This
+  // makes the slide parameter-independent — t_max only controls
+  // noise/sharpness, not absolute brightness.
+  bool normalize = 13;
+
+  // If > 0, draw a faint ring at this radius in the (Re ζ, Im ζ)
+  // plane as a reference. Visualizes "for t in this range, ζ
+  // mostly stays inside |z| < r".
+  double reference_radius = 14;
+}
+
+message Camera3D {
+  // Spherical orbit around (0, 0, 0).
+  double azimuth_deg = 1;     // around the up axis; 0 = +x
+  double elevation_deg = 2;   // pitch up from the horizon; 0 = level
+  double distance = 3;        // from origin to eye
+  double fov_deg = 4;         // vertical field of view
+}
+
+// Pointer to a data file consumed by PlotBlock / CanvasBlock. The
+// resolver (//walkthrough/resolver) reads the file at build
+// time, normalizes it into a uniform sidecar-JSON schema, and
+// rewrites `uri` to point at the staged sidecar so the browser
+// fetches plain JSON.
+//
+// Sidecar schema (per kind):
+//
+//   For PARQUET / CSV consumed by PlotBlock:
+//     { "series": [ { "name": str, "x": [...], "y": [...],
+//                     "color": str? } ] }
+//     The source file must have columns `x`, `y`, optional `series`,
+//     optional `color`. If `series` column is absent the whole file
+//     becomes one series named after the URI basename.
+//
+//   For NUMPY (.npz):
+//     { "arrays": { "<name>": [[...], ...] }, ... }
+//     Each top-level array in the npz is exposed by name.
+//
+//   For JSON:
+//     pass-through (the file must already match the consumer's
+//     expected schema).
+//
+// Future kinds (GRPC, HTTP) will go here without changing the wire
+// shape of the renderer — only the resolver learns new kinds.
+message DataSource {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    JSON = 1;
+    CSV = 2;
+    PARQUET = 3;
+    NUMPY = 4;        // .npz / .npy
+  }
+  Kind kind = 1;
+  // Source URI. At authoring time: path relative to the walkthrough
+  // package (resolver looks it up in the macro's `data` attr).
+  // After resolution: rewritten to the staged sidecar URL (e.g.
+  // `data/<basename>.json`) that the browser will fetch.
+  string uri = 2;
+  // Optional column selection (PARQUET/CSV). Empty = all columns.
+  repeated string columns = 3;
+  // Optional SQL-WHERE-ish row filter. Reserved; resolver ignores
+  // for now. Future: push down to pyarrow.compute / DuckDB.
+  string filter = 4;
+}
+
+// PointCloudBlock renders an instanced 3D point cloud — one Gaussian
+// splat per row in an external packed binary buffer ("binbuf"). The
+// renderer (`walkthrough/renderer/point_cloud_renderer.js`) does WebGPU
+// orbit-camera navigation and colors each point by a scalar `value`
+// field using a diverging cool-warm colormap centered at zero.
+//
+// Data layout — per vertex, packed little-endian:
+//
+//     | pos.x  pos.y  pos.z | kind | value |
+//     |  f32    f32    f32  | u32  |  f32  |
+//
+//   Stride = 20 bytes. Total = n_vertices × 20.
+//
+// The companion manifest.json (alongside the binbuf) declares
+// n_vertices, stride_bytes, bbox_min/max (for camera framing), and
+// the scalar value's abs-max for colormap normalization.
+//
+// Optional labels.tsv (id<TAB>name per row, same row order) is
+// fetched by the renderer for hover tooltips and search.
+//
+// Producer convention: a domain-specific Bazel target writes the
+// triple (binbuf + manifest + labels) into the walkthrough's
+// `assets/` so the resolver doesn't need to know about the format.
+// See `rules_agentic_ide/crates/agentic_ide_viz` for one such
+// producer (BGE embeddings → PCA → k-NN → Forman-Ricci curvature).
+message PointCloudBlock {
+  // Path (relative to assets/) of the vertex binbuf.
+  string vertex_buffer_uri = 1;
+  // Path (relative to assets/) of the JSON manifest.
+  string manifest_uri = 2;
+  // Optional path (relative to assets/) of the labels TSV.
+  string labels_uri = 3;
+  // Optional path (relative to assets/) of a clusters JSON sidecar.
+  // Schema: `{ num_clusters, clusters: [{cluster_id, center, vertices,
+  // indices, mean_ricci, ricci_stdev, member_count}, ...] }`. If set,
+  // the renderer draws each cluster's hull mesh as a translucent
+  // overlay colored by its mean curvature.
+  string clusters_uri = 12;
+  // Canvas pixel dimensions.
+  int32 width_px = 4;
+  int32 height_px = 5;
+  // Quad radius in NDC at unit depth. Tune for the corpus density;
+  // 0.008–0.020 works for the agentic_ide BGE corpus.
+  float splat_radius = 6;
+  // Global splat opacity multiplier. 1.0 = fully opaque centers,
+  // 0.5 gives a soft-volume "cloud" look.
+  float alpha = 7;
+  // Caption shown beneath the canvas.
+  string caption = 8;
+  // Optional legend explaining the colormap.
+  string legend_label_negative = 9;
+  string legend_label_zero = 10;
+  string legend_label_positive = 11;
+}
+
+// ClusterIndexBlock renders a sortable table summarizing the clusters
+// in a `clusters.json` sidecar (typically the output of
+// `agentic-ide-viz --num-clusters N`). Each row carries:
+//   - color swatch matching the cluster's mean curvature on the
+//     diverging colormap (same as PointCloudBlock);
+//   - cluster_id and member count;
+//   - mean ± stdev Ricci curvature;
+//   - top-N representative entity names (the points closest to the
+//     cluster centroid in embedding space).
+//
+// The block reads `clusters.json` only — no GPU, no point buffer
+// needed. Click a column header to sort; click a row to scroll the
+// (sibling) PointCloudBlock's camera to that cluster's center
+// (future enhancement; v0 just sorts).
+message ClusterIndexBlock {
+  // Path (relative to assets/) of the clusters JSON sidecar. Same
+  // schema as PointCloudBlock.clusters_uri.
+  string clusters_uri = 1;
+  // How many representative names to show per cluster. The producer
+  // typically emits 5; renderer truncates if fewer are available.
+  int32 top_n = 2;
+  // For colormap normalization (so the table swatches match the
+  // PointCloudBlock canvas). If 0 / unset, the renderer computes
+  // abs_max from the data itself.
+  float ricci_abs_max = 3;
+  // Caption shown above the table.
+  string caption = 4;
+}
+
+message Theme {
+  // CSS color palette.
+  string background = 1;
+  string foreground = 2;
+  string accent = 3;
+  string code_background = 4;
+  // Font stack ("serif" | "sans-serif" | full CSS family).
+  string body_font = 5;
+  string math_font = 6;
+  string mono_font = 7;
+}

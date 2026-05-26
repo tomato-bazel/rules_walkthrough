@@ -1,0 +1,40 @@
+{
+  "id": "hello",
+  "title": "rules_walkthrough — hello",
+  "subtitle": "framework smoke test",
+  "author": "rules_walkthrough",
+  "date": "2026-05-26",
+  "slides": [
+    {
+      "id": "title",
+      "title": "Hello, rules_walkthrough.",
+      "blocks": [
+        {
+          "block_id": "intro",
+          "text": {
+            "markdown": "This deck exists so `bazel build //examples/hello_world:hello` exercises the framework end-to-end — renderer staging, resolver no-op, py_binary serve target.\n\nIf you see this rendered, the lift worked."
+          }
+        }
+      ]
+    },
+    {
+      "id": "math",
+      "title": "KaTeX",
+      "blocks": [
+        {
+          "block_id": "euler",
+          "equation": {
+            "latex": "e^{i\\pi} + 1 = 0",
+            "label": "eq:euler"
+          }
+        },
+        {
+          "block_id": "blurb",
+          "text": {
+            "markdown": "Inline math also renders: $\\zeta(s) = \\sum_{n\\geq 1} n^{-s}$.\n\nMarkdown features: **bold**, *italic*, `code`, lists, and tables."
+          }
+        }
+      ]
+    }
+  ]
+}

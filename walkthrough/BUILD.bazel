@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+# `serve.py` is exported as a source so `walkthrough_html` can wire
+# it into per-walkthrough py_binary targets without each consumer
+# needing to redeclare the dependency.
+exports_files(
+    [
+        "serve.py",
+        "defs.bzl",
+    ],
+)

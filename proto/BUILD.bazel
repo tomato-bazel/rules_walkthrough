@@ -1,0 +1,9 @@
+package(default_visibility = ["//visibility:public"])
+
+# Authoring schema only — not compiled in this module. Renderers and
+# consumers treat walkthrough.json as the wire format. If a consumer
+# eventually needs typed bindings (Python `Walkthrough` dataclasses,
+# Rust `prost` types, etc.), add `proto_library` + `*_proto_library`
+# targets in their own repo and point them at this file via
+# `srcs = ["@rules_walkthrough//proto:walkthrough.proto"]`.
+exports_files(["walkthrough.proto"])

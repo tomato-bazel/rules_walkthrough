@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>wgsl_stdlib reference</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  body { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.5; }
+  code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 3px; }
+  pre code { display: block; padding: 0.75em 1em; overflow-x: auto; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 2.5rem 0; }
+  h2 { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #eee; }
+  h2 code { background: transparent; padding: 0; font-size: 1.2em; }
+  .toolbar { font: 12px monospace; color: #888; margin-bottom: 1rem; }
+  .toolbar a { color: #467; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span id="src-label"></span>
+  &middot; <a href="./">back to walkthrough</a>
+</div>
+<div id="content">Loading…</div>
+
+<script src="./vendor/marked.min.js"></script>
+<script>
+(async function () {
+    const params = new URLSearchParams(location.search);
+    const file = params.get("file") || "reference.md";
+    document.getElementById("src-label").textContent = "docs/" + file;
+    try {
+        const resp = await fetch("./docs/" + file);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const md = await resp.text();
+        document.getElementById("content").innerHTML = marked.parse(md);
+        document.title = file + " — wgsl_stdlib reference";
+    } catch (err) {
+        document.getElementById("content").textContent =
+            "Failed to load docs/" + file + ": " + err.message;
+    }
+})();
+</script>
+</body>
+</html>

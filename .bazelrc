@@ -1,0 +1,8 @@
+# rules_walkthrough — common build flags.
+#
+# Premium / non-public. Keep this file minimal; per-user overrides
+# go in .bazelrc.user (gitignored).
+common --enable_bzlmod
+common --noenable_workspace
+
+common --check_direct_dependencies=warning

@@ -1,0 +1,9 @@
+load("@rules_walkthrough//walkthrough:defs.bzl", "walkthrough_html")
+
+# `bazel build //examples/hello_world:hello` exercises the
+# resolver + renderer staging end-to-end.
+# `bazel run //examples/hello_world:hello_serve` opens it.
+walkthrough_html(
+    name = "hello",
+    src = "hello.json",
+)

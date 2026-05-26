@@ -1,0 +1,15 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+# Data-source resolver. Lazy-imports numpy/pyarrow inside the
+# .npy / .npz / .parquet loaders so consumers without those deps
+# in their pip hub can still use the resolver for JSON/CSV-only
+# walkthroughs. If a consumer passes such files via `data =`,
+# the resolver fails with a clear error pointing at the missing
+# dependency.
+py_binary(
+    name = "resolve",
+    srcs = ["resolve.py"],
+    main = "resolve.py",
+)

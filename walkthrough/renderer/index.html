@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Walkthrough</title>
+
+<!--
+  MVP renderer for walkthrough.v1.Walkthrough JSON.
+  KaTeX (0.16.11) + marked (12.0.2) are vendored under vendor/ so
+  the emitted site is fully offline-self-contained. The vendored
+  KaTeX is trimmed to the .min.css/.min.js + auto-render.min.js +
+  .woff2 fonts only (no .woff/.ttf legacy fallbacks). To refresh,
+  re-download from the upstream releases and rerun
+  `bazel run //tools/walkthrough/renderer:refresh_vendor`
+  (TODO: add the refresh target).
+-->
+<link rel="stylesheet" href="vendor/katex/katex.min.css" />
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="vendor/marked.min.js"></script>
+
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="deck-header">
+    <h1 id="deck-title"></h1>
+    <div id="deck-meta"></div>
+  </header>
+  <main id="deck"></main>
+  <nav id="deck-nav">
+    <button id="prev" type="button">&larr; prev</button>
+    <span id="counter"></span>
+    <button id="next" type="button">next &rarr;</button>
+  </nav>
+  <aside id="notes" hidden></aside>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

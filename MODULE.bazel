@@ -1,0 +1,32 @@
+"""rules_walkthrough — Bazel-native slide-deck framework.
+
+Lifted from `prime-transformer/tools/walkthrough/` per its own
+design-intent note. Renders declarative `walkthrough.v1.Walkthrough`
+JSON documents to a self-contained static site (renderer JS + KaTeX +
+marked + per-deck data sidecars).
+
+Distribution: premium / non-public. Sibling-checkout
+`local_path_override`s for now; if the premium tier moves to a
+private bazel-registry, the cluster moves together.
+"""
+
+module(
+    name = "rules_walkthrough",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "rules_python", version = "0.36.0")
+# Bazel 9 dropped native sh_test/sh_binary; the renderer dir's
+# filegroup needs nothing exotic, but consumer-side macros that
+# extend us may.
+bazel_dep(name = "rules_shell", version = "0.4.1")
+
+# The data-source resolver lazy-imports numpy/pyarrow so this module
+# doesn't carry a pip toolchain. Consumers that pass .npy/.npz/.parquet
+# via `data =` are responsible for ensuring those libraries are in the
+# resolver's runfiles (either by adding them to their own pip hub and
+# passing a `resolver_deps` extension here in v0.2, or by wrapping the
+# rule). v0 scope: JSON and CSV data sources work out of the box; the
+# numpy/pyarrow paths raise a clear error if their dep is missing.

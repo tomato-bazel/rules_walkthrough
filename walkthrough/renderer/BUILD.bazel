@@ -1,0 +1,15 @@
+package(default_visibility = ["//visibility:public"])
+
+# All renderer files (top-level HTML/JS/CSS + vendored KaTeX + marked).
+# Bundled into the served site verbatim, preserving the
+# `vendor/...` directory layout so index.html's relative paths
+# resolve correctly.
+filegroup(
+    name = "all_files",
+    srcs = glob([
+        "*.html",
+        "*.js",
+        "*.css",
+        "vendor/**/*",
+    ]),
+)
