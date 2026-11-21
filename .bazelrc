@@ -1,0 +1,15 @@
+# ⛔ WITHOUT THESE, A CLEAN CHECKOUT RESOLVES AGAINST WHATEVER ~/.bazelrc SAYS.
+#
+# rules_walkthrough is published to registry.tbzl.dev, and tomato-bazel modules
+# that consumers pair it with live only there. Pinning the registries here means
+# this repo (and its CI, which has no personal ~/.bazelrc) resolves the same way
+# on every machine instead of depending on developer config.
+#
+# ⚠ `--registry` ACCUMULATES rather than replaces, and FIRST MATCH WINS — so bcr
+# must be listed explicitly and must come second, or every public module
+# resolves from the tomato-bazel registry too.
+common --registry=https://registry.tbzl.dev/
+common --registry=https://bcr.bazel.build/
+
+# Local overrides (not checked in).
+try-import %workspace%/.bazelrc.user

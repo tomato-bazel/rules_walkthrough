@@ -14,13 +14,13 @@ syntax = "proto3";
 //
 // Why a proto rather than direct HTML/Reveal.js: separation of
 // authoring intent from presentation. The same `.textpb` can drive
-// a Reveal.js HTML deck, a Beamer PDF, or a Meridian web-component
-// renderer once we add those targets. The schema also opens the
+// a Reveal.js HTML deck, a Beamer PDF, or a web-component renderer
+// once we add those targets. The schema also opens the
 // door to ML-generated walkthroughs from research artifacts (e.g.
 // "given this paper section, emit a Walkthrough").
 //
-// Future extensions: WalkthroughPanel as a Meridian PanelDescriptor
-// variant; canvas/WebGPU animation steps tied to scientific data.
+// Future extensions: embeddable walkthrough panels; canvas/WebGPU
+// animation steps tied to scientific data.
 
 package walkthrough.v1;
 
@@ -820,8 +820,8 @@ message DataSource {
 // Producer convention: a domain-specific Bazel target writes the
 // triple (binbuf + manifest + labels) into the walkthrough's
 // `assets/` so the resolver doesn't need to know about the format.
-// See `rules_agentic_ide/crates/agentic_ide_viz` for one such
-// producer (BGE embeddings → PCA → k-NN → Forman-Ricci curvature).
+// One such producer: text embeddings → PCA → k-NN graph →
+// Forman-Ricci curvature as the per-vertex scalar.
 message PointCloudBlock {
   // Path (relative to assets/) of the vertex binbuf.
   string vertex_buffer_uri = 1;
@@ -839,7 +839,7 @@ message PointCloudBlock {
   int32 width_px = 4;
   int32 height_px = 5;
   // Quad radius in NDC at unit depth. Tune for the corpus density;
-  // 0.008–0.020 works for the agentic_ide BGE corpus.
+  // 0.008–0.020 works for a typical embedding corpus.
   float splat_radius = 6;
   // Global splat opacity multiplier. 1.0 = fully opaque centers,
   // 0.5 gives a soft-volume "cloud" look.

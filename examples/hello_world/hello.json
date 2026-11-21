@@ -12,7 +12,7 @@
         {
           "block_id": "intro",
           "text": {
-            "markdown": "This deck exists so `bazel build //examples/hello_world:hello` exercises the framework end-to-end — renderer staging, resolver no-op, py_binary serve target.\n\nIf you see this rendered, the lift worked."
+            "markdown": "This deck exists so `bazel build //examples/hello_world:hello` exercises the framework end-to-end — renderer staging, resolver no-op, py_binary serve target.\n\nIf you see this rendered, the framework works."
           }
         }
       ]

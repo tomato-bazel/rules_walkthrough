@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_walkthrough//walkthrough:defs.bzl", "walkthrough_html")
 
 # `bazel build //examples/hello_world:hello` exercises the
@@ -6,4 +7,12 @@ load("@rules_walkthrough//walkthrough:defs.bzl", "walkthrough_html")
 walkthrough_html(
     name = "hello",
     src = "hello.json",
+)
+
+build_test(
+    name = "hello_build_test",
+    targets = [
+        ":hello",
+        ":hello_serve",
+    ],
 )
