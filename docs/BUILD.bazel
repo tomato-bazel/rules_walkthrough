@@ -1,0 +1,29 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
+
+# API reference for //walkthrough:defs.bzl.
+#
+# `defs.md` is checked in so it renders on GitHub. `bazel test //docs:all`
+# fails if it drifts from the .bzl docstrings; `bazel run //docs:update`
+# regenerates it.
+stardoc(
+    name = "defs_doc",
+    out = "defs_generated.md",
+    input = "//walkthrough:defs.bzl",
+    deps = ["//walkthrough:defs"],
+)
+
+diff_test(
+    name = "defs_doc_test",
+    failure_message = "docs/defs.md is stale; run `bazel run //docs:update`.",
+    file1 = ":defs_generated.md",
+    file2 = "defs.md",
+)
+
+sh_binary(
+    name = "update",
+    srcs = ["update.sh"],
+    args = ["$(rootpath :defs_generated.md)"],
+    data = [":defs_generated.md"],
+)

@@ -8,7 +8,7 @@ Public surface:
         name = "walkthrough",
         src  = "walkthrough.json",
         assets = glob(["walkthrough_assets/**"]),
-        data = ["//runs/hilbert_polya:sigma_trace.npy"],
+        data = ["//data:trace.npy"],
     )
 
 This produces two targets:
@@ -34,12 +34,6 @@ The site is fully self-contained — no network fetches at view time.
 JSON, not textproto, is the on-disk format for now; Walkthrough
 (in `@rules_walkthrough//proto:walkthrough.proto`) is the schema,
 and a `textpb -> json` generator can be added later.
-
-Lift history: this rule lived in
-`prime-transformer/tools/walkthrough/defs.bzl` until it was promoted
-to its own module here. The rule itself is unchanged; only the labels
-of its private deps moved (`//tools/walkthrough/...` →
-`@rules_walkthrough//walkthrough/...`).
 """
 
 load("@rules_python//python:defs.bzl", "py_binary")
@@ -74,6 +68,7 @@ def _walkthrough_site_impl(ctx):
 
     for f in ctx.files.renderer:
         sp = f.short_path
+
         # Renderer files come in as `<external>/walkthrough/renderer/...`
         # when consumed via @rules_walkthrough, or
         # `walkthrough/renderer/...` when consumed in-tree. Strip
@@ -88,22 +83,22 @@ def _walkthrough_site_impl(ctx):
     for f in ctx.files.assets:
         stages.append((f, "assets/" + f.basename))
 
-    # Bazel-built shaders (wgsl_es_module outputs) land under shaders/.
+    # Bazel-built shader ES modules (`.wgsl.js`) land under shaders/.
     # Renderers import them with relative paths like
-    # `./shaders/heightmap_zeta_modulus_log.wgsl.js`.
+    # `./shaders/<basename>.wgsl.js`.
     for f in ctx.files.shaders:
         stages.append((f, "shaders/" + f.basename))
 
-    # Reflection-driven JS bindings (rules_render Phase 3 — typically
-    # `wgsl_pass` / `wgsl_material` `.bindings.js` outputs). Each
-    # lands at `bindings/<basename>` inside the site. Canvas scripts
-    # import them with `import { FooUniforms } from "../bindings/foo.bindings.js"`.
+    # JS bindings modules (`.bindings.js`, e.g. typed uniform writers
+    # generated from shader reflection). Each lands at
+    # `bindings/<basename>` inside the site. Canvas scripts import them
+    # with `import { FooUniforms } from "../bindings/foo.bindings.js"`.
     for f in ctx.files.bindings:
         stages.append((f, "bindings/" + f.basename))
 
-    # Standalone reference docs (typically `wgsl_doc_site` Markdown
-    # outputs). Each .md lands at `docs/<basename>` and is rendered
-    # client-side by docs.html via the already-vendored marked.min.js.
+    # Standalone Markdown reference docs. Each .md lands at
+    # `docs/<basename>` and is rendered client-side by docs.html via
+    # the already-vendored marked.min.js.
     for f in ctx.files.docs:
         stages.append((f, "docs/" + f.basename))
 
@@ -157,24 +152,23 @@ _walkthrough_site = rule(
         "shaders": attr.label_list(
             allow_files = [".wgsl.js"],
             default = [],
-            doc = "Bazel-built shader ES modules (typically " +
-                  "`wgsl_es_module` outputs). Each is staged at " +
-                  "`shaders/<basename>` inside the site.",
+            doc = "Bazel-built shader ES modules (`.wgsl.js`). " +
+                  "Each is staged at `shaders/<basename>` inside " +
+                  "the site.",
         ),
         "bindings": attr.label_list(
             allow_files = [".bindings.js"],
             default = [],
-            doc = "Reflection-driven JS bindings modules " +
-                  "(`rules_render` `wgsl_pass` / `wgsl_material` " +
-                  "`.bindings.js` outputs). Each is staged at " +
+            doc = "JS bindings modules (`.bindings.js`, e.g. " +
+                  "typed uniform writers generated from shader " +
+                  "reflection). Each is staged at " +
                   "`bindings/<basename>` inside the site so canvas " +
                   "scripts can `import` typed uniform writers.",
         ),
         "docs": attr.label_list(
             allow_files = [".md"],
             default = [],
-            doc = "Markdown reference docs (typically " +
-                  "`wgsl_doc_site` outputs). Each .md is staged at " +
+            doc = "Markdown reference docs. Each .md is staged at " +
                   "`docs/<basename>` and rendered client-side by " +
                   "`docs.html?file=<basename>`.",
         ),
@@ -212,15 +206,16 @@ def walkthrough_html(
             (.json/.csv/.npy/.npz/.parquet). The resolver loads each,
             emits a sidecar JSON under `data/`, and rewrites the
             block's URI to point at the sidecar.
-      shaders: `wgsl_es_module` (or other .wgsl.js-producing) targets.
+      shaders: targets producing shader ES modules (`.wgsl.js`).
                Each output lands at `shaders/<basename>` in the site;
                the renderer dynamically imports them by variant.
-      bindings: `wgsl_pass` / `wgsl_material` `.bindings.js` outputs
-                (rules_render Phase 3). Each lands at
-                `bindings/<basename>`. Canvas scripts import them as
+      bindings: targets producing JS bindings modules (`.bindings.js`,
+                e.g. typed uniform writers generated from shader
+                reflection). Each lands at `bindings/<basename>`.
+                Canvas scripts import them as
                 `../bindings/<name>.bindings.js`.
-      docs: Markdown reference docs (typically `wgsl_doc_site`
-            outputs). Each is staged at `docs/<basename>` and viewable
+      docs: Markdown reference docs. Each is staged at
+            `docs/<basename>` and viewable
             at `docs.html?file=<basename>` (rendered client-side by
             marked.min.js).
       port: default localhost port (auto-bumped if in use).
@@ -238,6 +233,7 @@ def walkthrough_html(
     )
 
     pkg = native.package_name()
+
     # The site TreeArtifact lives at `<workspace>/<pkg>/<name>_site`
     # in runfiles. Resolved by `_main/<pkg>/<name>_site` when the
     # consumer is in their own workspace.

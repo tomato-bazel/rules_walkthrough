@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs for the same ref. Without this a merge burst stacks
+# runs and exhausts the fleet.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Both platforms, deliberately. The site-staging action is a shell script
+  # (`cp`, `compgen`, `mkdir -p`), and BSD vs GNU userland is exactly where
+  # that kind of script breaks. A ruleset that is only green on one of them is
+  # green by luck.
+  test:
+    name: bazel test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@0.10.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.os }}
+          repository-cache: true
+      - name: bazel build //...
+        run: bazel build //...
+      # //examples/hello_world:hello_build_test stages a real site;
+      # //docs:defs_doc_test fails if docs/defs.md drifts from defs.bzl.
+      - name: bazel test //...
+        run: bazel test //... --test_output=errors
+
+  buildifier:
+    name: buildifier lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install buildifier
+        run: |
+          curl -fsSL -o /usr/local/bin/buildifier \
+            https://github.com/bazelbuild/buildtools/releases/download/v7.3.1/buildifier-linux-amd64
+          chmod +x /usr/local/bin/buildifier
+      - run: buildifier --mode=check --lint=warn -r .

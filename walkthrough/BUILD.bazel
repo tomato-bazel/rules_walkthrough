@@ -1,3 +1,5 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 package(default_visibility = ["//visibility:public"])
 
 # `serve.py` is exported as a source so `walkthrough_html` can wire
@@ -8,4 +10,12 @@ exports_files(
         "serve.py",
         "defs.bzl",
     ],
+)
+
+# For stardoc (//docs) and for consumers that document macros which
+# wrap `walkthrough_html`.
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = ["@rules_python//python:defs_bzl"],
 )
